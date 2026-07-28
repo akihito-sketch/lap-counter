@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>周回カウンター</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="周回カウンター">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <h1>周回カウンター</h1>
+    <span id="gpsStatus" class="gps-status gps-status--idle">GPS待機中</span>
+  </header>
+
+  <main>
+    <section class="stats-card">
+      <div class="stat stat--main">
+        <span class="stat-label">周回数</span>
+        <span class="stat-value" id="lapCount">0</span>
+        <span class="stat-unit">周</span>
+      </div>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="stat-label">距離</span>
+          <span class="stat-value stat-value--sub" id="distance">0.00</span>
+          <span class="stat-unit">km</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">時間</span>
+          <span class="stat-value stat-value--sub" id="elapsed">00:00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">ペース</span>
+          <span class="stat-value stat-value--sub" id="pace">--:--</span>
+          <span class="stat-unit">/km</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="controls">
+      <button id="startBtn" class="btn btn--start">スタート</button>
+      <button id="stopBtn" class="btn btn--stop" hidden>ストップ</button>
+    </div>
+
+    <p id="message" class="message"></p>
+
+    <details class="settings">
+      <summary>周回判定の詳細設定</summary>
+      <div class="settings-body">
+        <label>
+          スタート地点から何m離れたら「離れた」とみなすか
+          <input type="number" id="awayThreshold" min="5" max="500" step="1">
+        </label>
+        <label>
+          スタート地点から何m以内に戻ったら「1周」とカウントするか
+          <input type="number" id="returnThreshold" min="3" max="200" step="1">
+        </label>
+        <p class="hint">
+          公園を1周する距離の目安より少し狭い値を「離れた」に、狭い方を「戻った」に設定してください。
+          小さいトラックなら小さめの値にしてください。
+        </p>
+      </div>
+    </details>
+
+    <section class="history">
+      <div class="history-header">
+        <h2>記録</h2>
+        <button id="clearHistoryBtn" class="btn btn--text">全て削除</button>
+      </div>
+      <ul id="historyList" class="history-list"></ul>
+      <p id="historyEmpty" class="hint">まだ記録がありません。</p>
+    </section>
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
