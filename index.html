@@ -17,7 +17,7 @@
 <div class="app">
 
   <header class="app-header">
-    <h1>周回カウンター</h1>
+    <h1>周回カウンター <span class="app-version" id="appVersion">v3</span></h1>
     <span id="gpsStatus" class="gps-status gps-status--idle">GPS待機中</span>
   </header>
 
@@ -52,6 +52,10 @@
     </div>
 
     <p id="message" class="message"></p>
+
+    <button id="forceStartBtn" class="btn btn--ghost" hidden>
+      待たずに今の精度で計測を始める
+    </button>
 
     <details class="settings">
       <summary>周回判定の詳細設定</summary>

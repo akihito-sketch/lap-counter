@@ -13,6 +13,10 @@ const DEFAULT_SETTINGS = {
 const MAX_ACCEPTABLE_ACCURACY_M = 30;
 const MAX_PLAUSIBLE_SPEED_MPS = 4; // ~14.4 km/h, generous for fast walking/light jogging
 
+// A cold GPS fix can genuinely take this long outdoors (longer under tree cover
+// or near buildings). After this much waiting, offer to start with whatever fix we have.
+const FORCE_START_WAIT_MS = 10000;
+
 const els = {
   gpsStatus: document.getElementById('gpsStatus'),
   lapCount: document.getElementById('lapCount'),
@@ -21,6 +25,7 @@ const els = {
   pace: document.getElementById('pace'),
   startBtn: document.getElementById('startBtn'),
   stopBtn: document.getElementById('stopBtn'),
+  forceStartBtn: document.getElementById('forceStartBtn'),
   message: document.getElementById('message'),
   awayThreshold: document.getElementById('awayThreshold'),
   returnThreshold: document.getElementById('returnThreshold'),
@@ -39,6 +44,8 @@ const state = {
   wakeLock: null,
   startPoint: null,
   lastPoint: null,
+  pendingPoint: null, // best fix so far while accuracy is still above threshold
+  waitStartedAt: null,
   hasLeftStart: false,
   lapCount: 0,
   totalDistanceM: 0,
@@ -145,15 +152,28 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+function lockStartPoint(point) {
+  state.startPoint = point;
+  state.lastPoint = point;
+  state.startTime = Date.now();
+  els.forceStartBtn.hidden = true;
+  setMessage('スタート地点を記録しました。1周歩いてみましょう。');
+  render();
+}
+
 function onPosition(pos) {
   const { latitude, longitude, accuracy } = pos.coords;
   const point = { lat: latitude, lon: longitude, t: pos.timestamp };
 
   if (accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
     // Fix is too noisy to trust for distance/lap math; keep the user posted, skip math.
+    state.pendingPoint = point;
     setGpsStatus('idle', `精度待ち（現在 ${Math.round(accuracy)}m）`);
     if (!state.startPoint) {
       setMessage(`GPSの精度が上がるのを待っています（現在 ${Math.round(accuracy)}m）。屋外の見晴らしの良い場所でお待ちください。`);
+      if (state.waitStartedAt && Date.now() - state.waitStartedAt >= FORCE_START_WAIT_MS) {
+        els.forceStartBtn.hidden = false;
+      }
     }
     return;
   }
@@ -161,10 +181,7 @@ function onPosition(pos) {
   setGpsStatus('active', `計測中（精度 ${Math.round(accuracy)}m）`);
 
   if (!state.startPoint) {
-    state.startPoint = point;
-    state.lastPoint = point;
-    setMessage('スタート地点を記録しました。1周歩いてみましょう。');
-    render();
+    lockStartPoint(point);
     return;
   }
 
@@ -205,6 +222,9 @@ function onPositionError(err) {
   if (!state.startPoint) {
     setGpsStatus('idle', 'GPS取得中（電波待ち）');
     setMessage('屋外の見晴らしの良い場所で少しお待ちください。初回の取得には30秒前後かかることがあります。');
+    if (state.pendingPoint && state.waitStartedAt && Date.now() - state.waitStartedAt >= FORCE_START_WAIT_MS) {
+      els.forceStartBtn.hidden = false;
+    }
   } else {
     setGpsStatus('error', '一時的にGPS信号が届いていません');
   }
@@ -219,13 +239,16 @@ async function startTracking() {
   state.tracking = true;
   state.startPoint = null;
   state.lastPoint = null;
+  state.pendingPoint = null;
   state.hasLeftStart = false;
   state.lapCount = 0;
   state.totalDistanceM = 0;
-  state.startTime = Date.now();
+  state.startTime = null; // set once GPS actually locks onto a start point, not on button press
+  state.waitStartedAt = Date.now();
 
   els.startBtn.hidden = true;
   els.stopBtn.hidden = false;
+  els.forceStartBtn.hidden = true;
   setMessage('スタート地点を取得しています。その場で少し待ってください。');
   setGpsStatus('idle', 'GPS取得中');
 
@@ -270,8 +293,9 @@ function stopTracking() {
   state.tracking = false;
   els.startBtn.hidden = false;
   els.stopBtn.hidden = true;
+  els.forceStartBtn.hidden = true;
   setGpsStatus('idle', 'GPS待機中');
-  setMessage('計測を終了し、記録を保存しました。');
+  setMessage(state.startTime ? '計測を終了し、記録を保存しました。' : '計測を中止しました。');
 }
 
 function renderHistory() {
@@ -300,6 +324,12 @@ function renderHistory() {
 
 els.startBtn.addEventListener('click', startTracking);
 els.stopBtn.addEventListener('click', stopTracking);
+
+els.forceStartBtn.addEventListener('click', () => {
+  if (state.pendingPoint) {
+    lockStartPoint(state.pendingPoint);
+  }
+});
 
 els.clearHistoryBtn.addEventListener('click', () => {
   if (confirm('全ての記録を削除します。よろしいですか？')) {
