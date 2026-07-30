@@ -149,16 +149,21 @@ function onPosition(pos) {
   const { latitude, longitude, accuracy } = pos.coords;
   const point = { lat: latitude, lon: longitude, t: pos.timestamp };
 
-  setGpsStatus('active', `計測中（精度 ${Math.round(accuracy)}m）`);
-
   if (accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
-    // Fix is too noisy to trust for distance/lap math; still show status, skip math.
+    // Fix is too noisy to trust for distance/lap math; keep the user posted, skip math.
+    setGpsStatus('idle', `精度待ち（現在 ${Math.round(accuracy)}m）`);
+    if (!state.startPoint) {
+      setMessage(`GPSの精度が上がるのを待っています（現在 ${Math.round(accuracy)}m）。屋外の見晴らしの良い場所でお待ちください。`);
+    }
     return;
   }
+
+  setGpsStatus('active', `計測中（精度 ${Math.round(accuracy)}m）`);
 
   if (!state.startPoint) {
     state.startPoint = point;
     state.lastPoint = point;
+    setMessage('スタート地点を記録しました。1周歩いてみましょう。');
     render();
     return;
   }
@@ -185,8 +190,24 @@ function onPosition(pos) {
   render();
 }
 
+const GEOLOCATION_ERROR = { PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 };
+
 function onPositionError(err) {
-  setGpsStatus('error', 'GPS取得エラー: ' + err.message);
+  if (err.code === GEOLOCATION_ERROR.PERMISSION_DENIED) {
+    stopTracking();
+    setGpsStatus('error', '位置情報の利用が許可されていません');
+    setMessage('スマホ側で、このアプリ（ホーム画面のアイコン）に対する位置情報の利用を許可してから、もう一度スタートしてください。');
+    return;
+  }
+
+  // POSITION_UNAVAILABLE / TIMEOUT: GPS is still warming up. Not fatal — keep watching,
+  // the browser continues to retry watchPosition on its own.
+  if (!state.startPoint) {
+    setGpsStatus('idle', 'GPS取得中（電波待ち）');
+    setMessage('屋外の見晴らしの良い場所で少しお待ちください。初回の取得には30秒前後かかることがあります。');
+  } else {
+    setGpsStatus('error', '一時的にGPS信号が届いていません');
+  }
 }
 
 async function startTracking() {
@@ -213,7 +234,9 @@ async function startTracking() {
   state.watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true,
     maximumAge: 1000,
-    timeout: 15000,
+    // Cold GPS fixes outdoors commonly take longer than a few seconds; a short
+    // timeout here just produces spurious "error" callbacks while it's still warming up.
+    timeout: 60000,
   });
 
   state.timerId = setInterval(render, 1000);
