@@ -2,6 +2,7 @@
 
 const SETTINGS_KEY = 'lapCounter.settings.v1';
 const HISTORY_KEY = 'lapCounter.history.v1';
+const ACTIVE_SESSION_KEY = 'lapCounter.activeSession.v1';
 
 const DEFAULT_SETTINGS = {
   awayThreshold: 25,   // meters from start point counted as "left the start"
@@ -94,6 +95,37 @@ function loadHistory() {
 
 function saveHistory(history) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+// Continuously checkpointed while tracking, so a killed/reloaded app (common when the
+// OS reclaims memory from a backgrounded tab) can offer to resume instead of losing
+// everything silently.
+function saveActiveSessionSnapshot() {
+  if (!state.tracking || !state.startTime) return;
+  localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
+    startTime: state.startTime,
+    startPoint: state.startPoint,
+    lastPoint: state.lastPoint,
+    hasLeftStart: state.hasLeftStart,
+    lapCount: state.lapCount,
+    totalDistanceM: state.totalDistanceM,
+    laps: state.laps,
+    lastLapAt: state.lastLapAt,
+    lastLapDistanceM: state.lastLapDistanceM,
+  }));
+}
+
+function clearActiveSessionSnapshot() {
+  localStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
+function loadActiveSessionSnapshot() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 function haversineMeters(a, b) {
@@ -280,6 +312,7 @@ function lockStartPoint(point) {
   setMessage('スタート地点を記録しました。1周歩いてみましょう。');
   renderLaps();
   render();
+  saveActiveSessionSnapshot();
 }
 
 function recordLapSplit() {
@@ -347,6 +380,7 @@ function onPosition(pos) {
   }
 
   render();
+  saveActiveSessionSnapshot();
 }
 
 const GEOLOCATION_ERROR = { PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 };
@@ -393,13 +427,44 @@ async function startTracking() {
   state.hiddenAt = null;
   renderLaps();
 
-  els.startBtn.hidden = true;
-  els.stopBtn.hidden = false;
   els.forceStartBtn.hidden = true;
-  els.lockBtn.hidden = false;
-  els.pipBtn.hidden = !pipSupported;
   setMessage('スタート地点を取得しています。その場で少し待ってください。');
   setGpsStatus('idle', 'GPS取得中');
+
+  await beginWatching();
+}
+
+async function resumeFromSnapshot(snapshot) {
+  state.tracking = true;
+  state.startPoint = snapshot.startPoint;
+  state.lastPoint = snapshot.lastPoint;
+  state.pendingPoint = null;
+  state.hasLeftStart = snapshot.hasLeftStart;
+  state.lapCount = snapshot.lapCount;
+  state.totalDistanceM = snapshot.totalDistanceM;
+  state.startTime = snapshot.startTime;
+  state.waitStartedAt = Date.now();
+  state.laps = snapshot.laps || [];
+  state.lastLapAt = snapshot.lastLapAt;
+  state.lastLapDistanceM = snapshot.lastLapDistanceM;
+  state.hiddenAt = null;
+
+  renderLaps();
+  render();
+  els.forceStartBtn.hidden = true;
+  setGpsStatus('idle', 'GPS取得中');
+  setMessage('前回の記録から再開しました。');
+
+  await beginWatching();
+}
+
+// Shared by a fresh start and a resume-after-interruption: wires up GPS watching,
+// the wake lock, and the background-continuation mitigations (audio/PiP keep-alive).
+async function beginWatching() {
+  els.startBtn.hidden = true;
+  els.stopBtn.hidden = false;
+  els.lockBtn.hidden = false;
+  els.pipBtn.hidden = !pipSupported;
 
   await requestWakeLock();
   startKeepAlive();
@@ -428,6 +493,7 @@ function stopTracking() {
   releaseWakeLock();
   stopKeepAlive();
   stopPipVideo();
+  clearActiveSessionSnapshot();
 
   const elapsedMs = state.startTime ? Date.now() - state.startTime : 0;
 
@@ -581,5 +647,22 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+function checkForInterruptedSession() {
+  const snapshot = loadActiveSessionSnapshot();
+  if (!snapshot) return;
+  const laps = snapshot.lapCount || 0;
+  const km = ((snapshot.totalDistanceM || 0) / 1000).toFixed(2);
+  const resume = confirm(
+    `前回、記録が中断されたようです（${laps}周・${km}km）。続きから再開しますか？\n\n` +
+    `「キャンセル」を押すとこの記録は破棄されます。`
+  );
+  if (resume) {
+    resumeFromSnapshot(snapshot);
+  } else {
+    clearActiveSessionSnapshot();
+  }
+}
+
 render();
 renderHistory();
+checkForInterruptedSession();
