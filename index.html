@@ -17,9 +17,15 @@
 <div class="app">
 
   <header class="app-header">
-    <h1>周回カウンター <span class="app-version" id="appVersion">v6</span></h1>
+    <h1>周回カウンター <span class="app-version" id="appVersion">v7</span></h1>
     <span id="gpsStatus" class="gps-status gps-status--idle">GPS待機中</span>
   </header>
+
+  <!-- Silent, looping audio played only while tracking. Some mobile browsers keep a page's
+       JS running noticeably longer in the background while it holds active audio playback,
+       since that is a recognized legitimate background use case (unlike a bare timer/GPS poll).
+       This is a best-effort mitigation, not a guarantee — effectiveness varies by device/OS. -->
+  <audio id="keepAliveAudio" src="silence.wav" loop preload="auto" playsinline></audio>
 
   <main>
     <section class="stats-card">

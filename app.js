@@ -40,6 +40,7 @@ const els = {
   lockLapCount: document.getElementById('lockLapCount'),
   lockDistance: document.getElementById('lockDistance'),
   lockElapsed: document.getElementById('lockElapsed'),
+  keepAliveAudio: document.getElementById('keepAliveAudio'),
 };
 
 let settings = loadSettings();
@@ -154,6 +155,34 @@ async function requestWakeLock() {
     }
   } catch {
     // Not fatal: tracking still works, screen may just turn off.
+  }
+}
+
+function startKeepAlive() {
+  // Best effort only: some mobile browsers give a page noticeably more background
+  // runtime while it holds active audio playback (a recognized legitimate background
+  // use case). This does not guarantee GPS keeps updating once another app is in front —
+  // that is still governed separately by the OS/browser's location permission policy.
+  try {
+    els.keepAliveAudio.play().catch(() => {});
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: '周回カウンター計測中' });
+      navigator.mediaSession.playbackState = 'playing';
+    }
+  } catch {
+    // Ignore — this is a mitigation, not a requirement for the app to function.
+  }
+}
+
+function stopKeepAlive() {
+  try {
+    els.keepAliveAudio.pause();
+    els.keepAliveAudio.currentTime = 0;
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
+  } catch {
+    // Ignore.
   }
 }
 
@@ -311,6 +340,7 @@ async function startTracking() {
   setGpsStatus('idle', 'GPS取得中');
 
   await requestWakeLock();
+  startKeepAlive();
 
   state.watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true,
@@ -333,6 +363,7 @@ function stopTracking() {
     state.timerId = null;
   }
   releaseWakeLock();
+  stopKeepAlive();
 
   const elapsedMs = state.startTime ? Date.now() - state.startTime : 0;
 

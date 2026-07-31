@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lap-counter-v6';
+const CACHE_NAME = 'lap-counter-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './app.js',
   './manifest.json',
   './icon.svg',
+  './silence.wav',
 ];
 
 self.addEventListener('install', (event) => {
