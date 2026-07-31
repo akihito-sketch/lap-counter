@@ -227,6 +227,10 @@ html, body {
   margin: 0;
 }
 
+.lock-overlay[hidden] {
+  display: none;
+}
+
 .lock-overlay {
   position: fixed;
   inset: 0;
