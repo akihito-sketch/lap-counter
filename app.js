@@ -32,6 +32,8 @@ const els = {
   historyList: document.getElementById('historyList'),
   historyEmpty: document.getElementById('historyEmpty'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+  lapList: document.getElementById('lapList'),
+  lapEmpty: document.getElementById('lapEmpty'),
 };
 
 let settings = loadSettings();
@@ -51,6 +53,10 @@ const state = {
   totalDistanceM: 0,
   startTime: null,
   timerId: null,
+  laps: [], // completed lap splits: { lap, splitTimeMs, splitDistanceM }
+  lastLapAt: null,
+  lastLapDistanceM: 0,
+  hiddenAt: null,
 };
 
 function loadSettings() {
@@ -147,18 +153,43 @@ function releaseWakeLock() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (state.tracking && document.visibilityState === 'visible' && !state.wakeLock) {
+  if (!state.tracking) return;
+  if (document.visibilityState === 'hidden') {
+    // Remember that the screen/app was hidden at some point; checked on the next GPS fix.
+    if (!state.hiddenAt) state.hiddenAt = Date.now();
+  } else if (document.visibilityState === 'visible' && !state.wakeLock) {
     requestWakeLock();
   }
 });
+
+// Fallback only, for the rare case a gap happens without a visibilitychange event.
+// Ordinary GPS updates while walking with the screen on can easily be this far apart
+// (poor signal under trees, slow devices), so this must stay generous.
+const MAX_GAP_SEC = 45;
 
 function lockStartPoint(point) {
   state.startPoint = point;
   state.lastPoint = point;
   state.startTime = Date.now();
+  state.lastLapAt = state.startTime;
+  state.lastLapDistanceM = 0;
+  state.laps = [];
   els.forceStartBtn.hidden = true;
   setMessage('スタート地点を記録しました。1周歩いてみましょう。');
+  renderLaps();
   render();
+}
+
+function recordLapSplit() {
+  const now = Date.now();
+  state.laps.unshift({
+    lap: state.lapCount,
+    splitTimeMs: now - state.lastLapAt,
+    splitDistanceM: state.totalDistanceM - state.lastLapDistanceM,
+  });
+  state.lastLapAt = now;
+  state.lastLapDistanceM = state.totalDistanceM;
+  renderLaps();
 }
 
 function onPosition(pos) {
@@ -186,13 +217,21 @@ function onPosition(pos) {
   }
 
   if (state.lastPoint) {
-    const segment = haversineMeters(state.lastPoint, point);
-    const dtSec = Math.max((point.t - state.lastPoint.t) / 1000, 0.001);
-    const impliedSpeed = segment / dtSec;
-    if (impliedSpeed <= MAX_PLAUSIBLE_SPEED_MPS) {
-      state.totalDistanceM += segment;
+    const dtSec = (point.t - state.lastPoint.t) / 1000;
+    const wasHidden = state.hiddenAt !== null;
+    if (wasHidden || dtSec > MAX_GAP_SEC) {
+      // Screen was off / app backgrounded (or a long silent gap happened either way).
+      // Don't guess a distance across it — just resync from here and say why.
+      setMessage(`画面を閉じていた間（約${Math.round(dtSec)}秒）は距離を計測できていません。計測中は画面をつけたままにしてください。`);
+    } else {
+      const segment = haversineMeters(state.lastPoint, point);
+      const impliedSpeed = segment / Math.max(dtSec, 0.001);
+      if (impliedSpeed <= MAX_PLAUSIBLE_SPEED_MPS) {
+        state.totalDistanceM += segment;
+      }
+      // else: treat as GPS noise/jump, don't add to distance, but still update lastPoint below
     }
-    // else: treat as GPS noise/jump, don't add to distance, but still update lastPoint below
+    state.hiddenAt = null;
   }
   state.lastPoint = point;
 
@@ -202,6 +241,7 @@ function onPosition(pos) {
   } else if (state.hasLeftStart && distFromStart <= settings.returnThreshold) {
     state.hasLeftStart = false;
     state.lapCount += 1;
+    recordLapSplit();
   }
 
   render();
@@ -245,6 +285,11 @@ async function startTracking() {
   state.totalDistanceM = 0;
   state.startTime = null; // set once GPS actually locks onto a start point, not on button press
   state.waitStartedAt = Date.now();
+  state.laps = [];
+  state.lastLapAt = null;
+  state.lastLapDistanceM = 0;
+  state.hiddenAt = null;
+  renderLaps();
 
   els.startBtn.hidden = true;
   els.stopBtn.hidden = false;
@@ -285,6 +330,7 @@ function stopTracking() {
       laps: state.lapCount,
       distanceM: Math.round(state.totalDistanceM),
       elapsedMs,
+      lapSplits: state.laps.slice().reverse(), // chronological order for storage
     });
     saveHistory(history.slice(0, 100));
     renderHistory();
@@ -296,6 +342,24 @@ function stopTracking() {
   els.forceStartBtn.hidden = true;
   setGpsStatus('idle', 'GPS待機中');
   setMessage(state.startTime ? '計測を終了し、記録を保存しました。' : '計測を中止しました。');
+}
+
+function renderLaps() {
+  els.lapList.innerHTML = '';
+  els.lapEmpty.hidden = state.laps.length > 0;
+
+  for (const split of state.laps) {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+    li.innerHTML = `
+      <div>${split.lap}周目</div>
+      <div class="h-metrics">
+        ${(split.splitDistanceM / 1000).toFixed(2)}km・${formatElapsed(split.splitTimeMs)}<br>
+        ${formatPace(split.splitTimeMs, split.splitDistanceM)}/km
+      </div>
+    `;
+    els.lapList.appendChild(li);
+  }
 }
 
 function renderHistory() {
