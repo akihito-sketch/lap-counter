@@ -41,6 +41,9 @@ const els = {
   lockDistance: document.getElementById('lockDistance'),
   lockElapsed: document.getElementById('lockElapsed'),
   keepAliveAudio: document.getElementById('keepAliveAudio'),
+  pipCanvas: document.getElementById('pipCanvas'),
+  pipVideo: document.getElementById('pipVideo'),
+  pipBtn: document.getElementById('pipBtn'),
 };
 
 let settings = loadSettings();
@@ -146,6 +149,23 @@ function render() {
     els.lockDistance.textContent = (state.totalDistanceM / 1000).toFixed(2);
     els.lockElapsed.textContent = formatElapsed(elapsedMs);
   }
+
+  drawPipFrame(elapsedMs);
+}
+
+function drawPipFrame(elapsedMs) {
+  const ctx = els.pipCanvas.getContext('2d');
+  if (!ctx) return;
+  const w = els.pipCanvas.width;
+  const h = els.pipCanvas.height;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(`${state.lapCount}周`, 16, 46);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '20px sans-serif';
+  ctx.fillText(`${(state.totalDistanceM / 1000).toFixed(2)}km ・ ${formatElapsed(elapsedMs)}`, 16, 84);
 }
 
 async function requestWakeLock() {
@@ -183,6 +203,47 @@ function stopKeepAlive() {
     }
   } catch {
     // Ignore.
+  }
+}
+
+const pipSupported = 'requestPictureInPicture' in HTMLVideoElement.prototype && els.pipCanvas.captureStream;
+
+function startPipVideo() {
+  if (!pipSupported) return;
+  drawPipFrame(0); // the stream must have at least one real frame before playback can start
+  try {
+    if (!els.pipVideo.srcObject) {
+      els.pipVideo.srcObject = els.pipCanvas.captureStream(2); // 2 fps is plenty for text stats
+    }
+    // Fire-and-forget: this is a best-effort mitigation and must never block the
+    // actual GPS tracking setup below, even if play() stalls on some device/browser.
+    els.pipVideo.play().catch(() => {});
+  } catch {
+    // Not fatal: PiP is a mitigation, not a requirement for the app to function.
+  }
+}
+
+function stopPipVideo() {
+  if (document.pictureInPictureElement === els.pipVideo) {
+    document.exitPictureInPicture().catch(() => {});
+  }
+  els.pipVideo.pause();
+}
+
+async function togglePip() {
+  if (!pipSupported) {
+    setMessage('この端末・ブラウザは小画面表示（Picture-in-Picture）に対応していません。');
+    return;
+  }
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+    } else {
+      await startPipVideo();
+      await els.pipVideo.requestPictureInPicture();
+    }
+  } catch {
+    setMessage('小画面表示を開始できませんでした。');
   }
 }
 
@@ -336,11 +397,13 @@ async function startTracking() {
   els.stopBtn.hidden = false;
   els.forceStartBtn.hidden = true;
   els.lockBtn.hidden = false;
+  els.pipBtn.hidden = !pipSupported;
   setMessage('スタート地点を取得しています。その場で少し待ってください。');
   setGpsStatus('idle', 'GPS取得中');
 
   await requestWakeLock();
   startKeepAlive();
+  startPipVideo();
 
   state.watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true,
@@ -364,6 +427,7 @@ function stopTracking() {
   }
   releaseWakeLock();
   stopKeepAlive();
+  stopPipVideo();
 
   const elapsedMs = state.startTime ? Date.now() - state.startTime : 0;
 
@@ -385,6 +449,7 @@ function stopTracking() {
   els.stopBtn.hidden = true;
   els.forceStartBtn.hidden = true;
   els.lockBtn.hidden = true;
+  els.pipBtn.hidden = true;
   hideLockOverlay();
   setGpsStatus('idle', 'GPS待機中');
   setMessage(state.startTime ? '計測を終了し、記録を保存しました。' : '計測を中止しました。');
@@ -468,6 +533,7 @@ function startUnlockHold() {
 }
 
 els.lockBtn.addEventListener('click', showLockOverlay);
+els.pipBtn.addEventListener('click', togglePip);
 
 els.lockOverlay.addEventListener('pointerdown', (e) => {
   e.preventDefault();
