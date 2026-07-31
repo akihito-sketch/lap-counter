@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lap-counter-v4';
+const CACHE_NAME = 'lap-counter-v5';
 const ASSETS = [
   './',
   './index.html',

@@ -217,6 +217,60 @@ html, body {
   margin: 0;
 }
 
+.lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(6, 10, 20, 0.98);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.lock-content {
+  text-align: center;
+  padding: 24px;
+  max-width: 320px;
+}
+
+.lock-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.lock-stats {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.lock-hint {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.lock-progress {
+  width: 220px;
+  height: 8px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.lock-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-strong);
+}
+
 .history-header {
   display: flex;
   align-items: center;

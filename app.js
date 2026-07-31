@@ -34,6 +34,12 @@ const els = {
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   lapList: document.getElementById('lapList'),
   lapEmpty: document.getElementById('lapEmpty'),
+  lockBtn: document.getElementById('lockBtn'),
+  lockOverlay: document.getElementById('lockOverlay'),
+  lockProgressBar: document.getElementById('lockProgressBar'),
+  lockLapCount: document.getElementById('lockLapCount'),
+  lockDistance: document.getElementById('lockDistance'),
+  lockElapsed: document.getElementById('lockElapsed'),
 };
 
 let settings = loadSettings();
@@ -133,6 +139,12 @@ function render() {
   const elapsedMs = state.startTime ? Date.now() - state.startTime : 0;
   els.elapsed.textContent = formatElapsed(elapsedMs);
   els.pace.textContent = formatPace(elapsedMs, state.totalDistanceM);
+
+  if (!els.lockOverlay.hidden) {
+    els.lockLapCount.textContent = state.lapCount;
+    els.lockDistance.textContent = (state.totalDistanceM / 1000).toFixed(2);
+    els.lockElapsed.textContent = formatElapsed(elapsedMs);
+  }
 }
 
 async function requestWakeLock() {
@@ -294,6 +306,7 @@ async function startTracking() {
   els.startBtn.hidden = true;
   els.stopBtn.hidden = false;
   els.forceStartBtn.hidden = true;
+  els.lockBtn.hidden = false;
   setMessage('スタート地点を取得しています。その場で少し待ってください。');
   setGpsStatus('idle', 'GPS取得中');
 
@@ -340,6 +353,8 @@ function stopTracking() {
   els.startBtn.hidden = false;
   els.stopBtn.hidden = true;
   els.forceStartBtn.hidden = true;
+  els.lockBtn.hidden = true;
+  hideLockOverlay();
   setGpsStatus('idle', 'GPS待機中');
   setMessage(state.startTime ? '計測を終了し、記録を保存しました。' : '計測を中止しました。');
 }
@@ -385,6 +400,51 @@ function renderHistory() {
     els.historyList.appendChild(li);
   }
 }
+
+const UNLOCK_HOLD_MS = 3000;
+let unlockHoldRAF = null;
+let unlockHoldStartedAt = null;
+
+function showLockOverlay() {
+  els.lockOverlay.hidden = false;
+  render();
+}
+
+function hideLockOverlay() {
+  els.lockOverlay.hidden = true;
+  cancelUnlockHold();
+}
+
+function cancelUnlockHold() {
+  if (unlockHoldRAF) cancelAnimationFrame(unlockHoldRAF);
+  unlockHoldRAF = null;
+  unlockHoldStartedAt = null;
+  els.lockProgressBar.style.width = '0%';
+}
+
+function startUnlockHold() {
+  unlockHoldStartedAt = Date.now();
+  const step = () => {
+    const elapsed = Date.now() - unlockHoldStartedAt;
+    els.lockProgressBar.style.width = Math.min(100, (elapsed / UNLOCK_HOLD_MS) * 100) + '%';
+    if (elapsed >= UNLOCK_HOLD_MS) {
+      hideLockOverlay();
+      return;
+    }
+    unlockHoldRAF = requestAnimationFrame(step);
+  };
+  unlockHoldRAF = requestAnimationFrame(step);
+}
+
+els.lockBtn.addEventListener('click', showLockOverlay);
+
+els.lockOverlay.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  startUnlockHold();
+});
+els.lockOverlay.addEventListener('pointerup', cancelUnlockHold);
+els.lockOverlay.addEventListener('pointercancel', cancelUnlockHold);
+els.lockOverlay.addEventListener('contextmenu', (e) => e.preventDefault());
 
 els.startBtn.addEventListener('click', startTracking);
 els.stopBtn.addEventListener('click', stopTracking);

@@ -17,7 +17,7 @@
 <div class="app">
 
   <header class="app-header">
-    <h1>周回カウンター <span class="app-version" id="appVersion">v4</span></h1>
+    <h1>周回カウンター <span class="app-version" id="appVersion">v5</span></h1>
     <span id="gpsStatus" class="gps-status gps-status--idle">GPS待機中</span>
   </header>
 
@@ -50,6 +50,8 @@
       <button id="startBtn" class="btn btn--start">スタート</button>
       <button id="stopBtn" class="btn btn--stop" hidden>ストップ</button>
     </div>
+
+    <button id="lockBtn" class="btn btn--ghost" hidden>画面をロックする（ポケットに入れる前に）</button>
 
     <p id="message" class="message"></p>
 
@@ -90,6 +92,17 @@
       <p id="historyEmpty" class="hint">まだ記録がありません。</p>
     </section>
   </main>
+
+  <div id="lockOverlay" class="lock-overlay" hidden>
+    <div class="lock-content">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-stats">
+        <span id="lockLapCount">0</span>周 ・ <span id="lockDistance">0.00</span>km ・ <span id="lockElapsed">00:00</span>
+      </div>
+      <p class="lock-hint">ロック中です。指を離さず3秒間長押しすると解除します。</p>
+      <div class="lock-progress"><div id="lockProgressBar" class="lock-progress-bar"></div></div>
+    </div>
+  </div>
 
 </div>
 
