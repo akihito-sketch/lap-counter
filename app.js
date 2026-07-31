@@ -234,7 +234,7 @@ function onPosition(pos) {
     if (wasHidden || dtSec > MAX_GAP_SEC) {
       // Screen was off / app backgrounded (or a long silent gap happened either way).
       // Don't guess a distance across it — just resync from here and say why.
-      setMessage(`画面を閉じていた間（約${Math.round(dtSec)}秒）は距離を計測できていません。計測中は画面をつけたままにしてください。`);
+      setMessage(`他のアプリに切り替えていた間（約${Math.round(dtSec)}秒）は距離を計測できていません。計測中はこの画面を開いたままにしてください。`);
     } else {
       const segment = haversineMeters(state.lastPoint, point);
       const impliedSpeed = segment / Math.max(dtSec, 0.001);
