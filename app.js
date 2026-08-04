@@ -553,24 +553,37 @@ function renderHistory() {
   els.historyList.innerHTML = '';
   els.historyEmpty.hidden = history.length > 0;
 
-  for (const record of history) {
+  history.forEach((record, index) => {
     const li = document.createElement('li');
     li.className = 'history-item';
     const d = new Date(record.date);
     const dateLabel = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     li.innerHTML = `
-      <div>
-        <time>${dateLabel}</time>
-        ${record.laps}周
+      <div class="history-item-info">
+        <div>
+          <time>${dateLabel}</time>
+          ${record.laps}周
+        </div>
+        <div class="h-metrics">
+          ${(record.distanceM / 1000).toFixed(2)}km<br>
+          ${formatElapsed(record.elapsedMs)}
+        </div>
       </div>
-      <div class="h-metrics">
-        ${(record.distanceM / 1000).toFixed(2)}km<br>
-        ${formatElapsed(record.elapsedMs)}
-      </div>
+      <button class="history-delete" data-index="${index}" aria-label="この記録を削除">×</button>
     `;
     els.historyList.appendChild(li);
-  }
+  });
 }
+
+els.historyList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.history-delete');
+  if (!btn) return;
+  const index = Number(btn.dataset.index);
+  const history = loadHistory();
+  history.splice(index, 1);
+  saveHistory(history);
+  renderHistory();
+});
 
 const UNLOCK_HOLD_MS = 3000;
 let unlockHoldRAF = null;

@@ -319,9 +319,28 @@ html, body {
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.history-item-info {
+  flex: 1;
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  min-width: 0;
+}
+
+.history-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
 }
 
 .history-item time {
