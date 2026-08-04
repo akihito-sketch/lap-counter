@@ -5,8 +5,8 @@ const HISTORY_KEY = 'lapCounter.history.v1';
 const ACTIVE_SESSION_KEY = 'lapCounter.activeSession.v1';
 
 const DEFAULT_SETTINGS = {
-  awayThreshold: 25,   // meters from start point counted as "left the start"
-  returnThreshold: 15, // meters from start point counted as "back at the start"
+  awayThreshold: 30,   // meters from start point counted as "left the start"
+  returnThreshold: 20, // meters from start point counted as "back at the start"
 };
 
 // GPS readings jump around. Ignore fixes worse than this accuracy (meters),
@@ -204,6 +204,15 @@ async function requestWakeLock() {
   try {
     if ('wakeLock' in navigator) {
       state.wakeLock = await navigator.wakeLock.request('screen');
+      state.wakeLock.addEventListener('release', () => {
+        state.wakeLock = null;
+        // The lock can be released for reasons other than us leaving the page (OS power
+        // management, battery saver, etc). If we're still tracking and visible, try again
+        // right away instead of leaving the screen free to sleep.
+        if (state.tracking && document.visibilityState === 'visible') {
+          requestWakeLock();
+        }
+      });
     }
   } catch {
     // Not fatal: tracking still works, screen may just turn off.
