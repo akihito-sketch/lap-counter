@@ -32,6 +32,7 @@ const els = {
   returnThreshold: document.getElementById('returnThreshold'),
   historyList: document.getElementById('historyList'),
   historyEmpty: document.getElementById('historyEmpty'),
+  toggleDeleteBtn: document.getElementById('toggleDeleteBtn'),
   lapList: document.getElementById('lapList'),
   lapEmpty: document.getElementById('lapEmpty'),
   lockBtn: document.getElementById('lockBtn'),
@@ -551,6 +552,11 @@ function renderHistory() {
   const history = loadHistory();
   els.historyList.innerHTML = '';
   els.historyEmpty.hidden = history.length > 0;
+  els.toggleDeleteBtn.hidden = history.length === 0;
+  if (history.length === 0) {
+    els.historyList.classList.remove('delete-mode');
+    els.toggleDeleteBtn.textContent = '削除';
+  }
 
   history.forEach((record, index) => {
     const li = document.createElement('li');
@@ -576,22 +582,17 @@ function renderHistory() {
 
 els.historyList.addEventListener('click', (e) => {
   const deleteBtn = e.target.closest('.history-delete');
-  if (deleteBtn) {
-    const index = Number(deleteBtn.dataset.index);
-    const history = loadHistory();
-    history.splice(index, 1);
-    saveHistory(history);
-    renderHistory();
-    return;
-  }
+  if (!deleteBtn) return;
+  const index = Number(deleteBtn.dataset.index);
+  const history = loadHistory();
+  history.splice(index, 1);
+  saveHistory(history);
+  renderHistory();
+});
 
-  // First tap reveals the × for that item (and hides any other item's), so an
-  // accidental tap can't delete a record outright — it takes two deliberate taps.
-  const item = e.target.closest('.history-item');
-  if (!item) return;
-  const wasRevealed = item.classList.contains('revealed');
-  els.historyList.querySelectorAll('.history-item.revealed').forEach((el) => el.classList.remove('revealed'));
-  if (!wasRevealed) item.classList.add('revealed');
+els.toggleDeleteBtn.addEventListener('click', () => {
+  const active = els.historyList.classList.toggle('delete-mode');
+  els.toggleDeleteBtn.textContent = active ? '完了' : '削除';
 });
 
 const UNLOCK_HOLD_MS = 3000;

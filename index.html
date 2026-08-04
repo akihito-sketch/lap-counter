@@ -17,7 +17,7 @@
 <div class="app">
 
   <header class="app-header">
-    <h1>周回カウンター <span class="app-version" id="appVersion">v13</span></h1>
+    <h1>周回カウンター <span class="app-version" id="appVersion">v14</span></h1>
     <span id="gpsStatus" class="gps-status gps-status--idle">GPS待機中</span>
   </header>
 
@@ -100,6 +100,7 @@
     <section class="history">
       <div class="history-header">
         <h2>記録</h2>
+        <button id="toggleDeleteBtn" class="btn btn--text" hidden>削除</button>
       </div>
       <ul id="historyList" class="history-list"></ul>
       <p id="historyEmpty" class="hint">まだ記録がありません。</p>
