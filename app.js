@@ -32,7 +32,6 @@ const els = {
   returnThreshold: document.getElementById('returnThreshold'),
   historyList: document.getElementById('historyList'),
   historyEmpty: document.getElementById('historyEmpty'),
-  clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   lapList: document.getElementById('lapList'),
   lapEmpty: document.getElementById('lapEmpty'),
   lockBtn: document.getElementById('lockBtn'),
@@ -576,13 +575,23 @@ function renderHistory() {
 }
 
 els.historyList.addEventListener('click', (e) => {
-  const btn = e.target.closest('.history-delete');
-  if (!btn) return;
-  const index = Number(btn.dataset.index);
-  const history = loadHistory();
-  history.splice(index, 1);
-  saveHistory(history);
-  renderHistory();
+  const deleteBtn = e.target.closest('.history-delete');
+  if (deleteBtn) {
+    const index = Number(deleteBtn.dataset.index);
+    const history = loadHistory();
+    history.splice(index, 1);
+    saveHistory(history);
+    renderHistory();
+    return;
+  }
+
+  // First tap reveals the × for that item (and hides any other item's), so an
+  // accidental tap can't delete a record outright — it takes two deliberate taps.
+  const item = e.target.closest('.history-item');
+  if (!item) return;
+  const wasRevealed = item.classList.contains('revealed');
+  els.historyList.querySelectorAll('.history-item.revealed').forEach((el) => el.classList.remove('revealed'));
+  if (!wasRevealed) item.classList.add('revealed');
 });
 
 const UNLOCK_HOLD_MS = 3000;
@@ -637,13 +646,6 @@ els.stopBtn.addEventListener('click', stopTracking);
 els.forceStartBtn.addEventListener('click', () => {
   if (state.pendingPoint) {
     lockStartPoint(state.pendingPoint);
-  }
-});
-
-els.clearHistoryBtn.addEventListener('click', () => {
-  if (confirm('全ての記録を削除します。よろしいですか？')) {
-    saveHistory([]);
-    renderHistory();
   }
 });
 

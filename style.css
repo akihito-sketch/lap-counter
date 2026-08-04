@@ -157,16 +157,6 @@ html, body {
   color: #2b0a0a;
 }
 
-.btn--text {
-  flex: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 4px 8px;
-  text-decoration: underline;
-}
-
 .btn--ghost {
   width: 100%;
   background: none;
@@ -333,6 +323,7 @@ html, body {
 }
 
 .history-delete {
+  display: none;
   flex-shrink: 0;
   background: none;
   border: none;
@@ -341,6 +332,10 @@ html, body {
   line-height: 1;
   padding: 4px 6px;
   cursor: pointer;
+}
+
+.history-item.revealed .history-delete {
+  display: inline-block;
 }
 
 .history-item time {
