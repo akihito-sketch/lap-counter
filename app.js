@@ -41,6 +41,10 @@ const els = {
   lockLapCount: document.getElementById('lockLapCount'),
   lockDistance: document.getElementById('lockDistance'),
   lockElapsed: document.getElementById('lockElapsed'),
+  lockSlideStep: document.getElementById('lockSlideStep'),
+  lockHoldStep: document.getElementById('lockHoldStep'),
+  lockSlideTrack: document.getElementById('lockSlideTrack'),
+  lockSlideHandle: document.getElementById('lockSlideHandle'),
   keepAliveAudio: document.getElementById('keepAliveAudio'),
   pipCanvas: document.getElementById('pipCanvas'),
   pipVideo: document.getElementById('pipVideo'),
@@ -298,8 +302,13 @@ function releaseWakeLock() {
 document.addEventListener('visibilitychange', () => {
   if (!state.tracking) return;
   if (document.visibilityState === 'hidden') {
-    // Remember that the screen/app was hidden at some point; checked on the next GPS fix.
-    if (!state.hiddenAt) state.hiddenAt = Date.now();
+    // If Picture-in-Picture is actively showing our stats, the user deliberately kept
+    // a live view open — trust GPS fixes that arrive during this period like any other,
+    // instead of treating it as an untracked gap the way a plain app-switch is treated.
+    const inPip = document.pictureInPictureElement === els.pipVideo;
+    if (!inPip && !state.hiddenAt) {
+      state.hiddenAt = Date.now();
+    }
   } else if (document.visibilityState === 'visible' && !state.wakeLock) {
     requestWakeLock();
   }
@@ -596,10 +605,22 @@ els.toggleDeleteBtn.addEventListener('click', () => {
 });
 
 const UNLOCK_HOLD_MS = 3000;
+const SLIDE_COMPLETE_RATIO = 0.85; // must drag the handle at least this far across the track
 let unlockHoldRAF = null;
 let unlockHoldStartedAt = null;
 
+// Unlocking is two deliberate steps — slide, then hold — so a quick accidental
+// touch in a pocket can never unlock the screen on its own.
+let lockStage = 'slide'; // 'slide' | 'hold'
+let slideDragging = false;
+let slideStartX = 0;
+let slideCurrentX = 0;
+
 function showLockOverlay() {
+  lockStage = 'slide';
+  resetSlide();
+  els.lockSlideStep.hidden = false;
+  els.lockHoldStep.hidden = true;
   els.lockOverlay.hidden = false;
   render();
 }
@@ -607,6 +628,20 @@ function showLockOverlay() {
 function hideLockOverlay() {
   els.lockOverlay.hidden = true;
   cancelUnlockHold();
+  lockStage = 'slide';
+  resetSlide();
+}
+
+function resetSlide() {
+  slideCurrentX = 0;
+  els.lockSlideHandle.style.transition = 'transform 0.2s ease';
+  els.lockSlideHandle.style.transform = 'translateX(0px)';
+}
+
+function completeSlide() {
+  lockStage = 'hold';
+  els.lockSlideStep.hidden = true;
+  els.lockHoldStep.hidden = false;
 }
 
 function cancelUnlockHold() {
@@ -633,7 +668,39 @@ function startUnlockHold() {
 els.lockBtn.addEventListener('click', showLockOverlay);
 els.pipBtn.addEventListener('click', togglePip);
 
+els.lockSlideHandle.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  slideDragging = true;
+  slideStartX = e.clientX;
+  els.lockSlideHandle.style.transition = 'none';
+  els.lockSlideHandle.setPointerCapture(e.pointerId);
+});
+
+els.lockSlideHandle.addEventListener('pointermove', (e) => {
+  if (!slideDragging) return;
+  const maxTravel = els.lockSlideTrack.clientWidth - els.lockSlideHandle.clientWidth - 6;
+  const delta = e.clientX - slideStartX;
+  slideCurrentX = Math.max(0, Math.min(maxTravel, delta));
+  els.lockSlideHandle.style.transform = `translateX(${slideCurrentX}px)`;
+});
+
+function endSlideDrag() {
+  if (!slideDragging) return;
+  slideDragging = false;
+  const maxTravel = els.lockSlideTrack.clientWidth - els.lockSlideHandle.clientWidth - 6;
+  if (maxTravel > 0 && slideCurrentX / maxTravel >= SLIDE_COMPLETE_RATIO) {
+    completeSlide();
+  } else {
+    resetSlide();
+  }
+}
+
+els.lockSlideHandle.addEventListener('pointerup', endSlideDrag);
+els.lockSlideHandle.addEventListener('pointercancel', endSlideDrag);
+
 els.lockOverlay.addEventListener('pointerdown', (e) => {
+  if (lockStage !== 'hold') return;
   e.preventDefault();
   startUnlockHold();
 });
