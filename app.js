@@ -187,6 +187,22 @@ function render() {
   }
 
   drawPipFrame(elapsedMs);
+  updateMediaSessionStats(elapsedMs);
+}
+
+// Piggybacks on the "now playing" media notification (already shown while the
+// keep-alive audio plays) to surface live stats in the notification shade / lock
+// screen — the same idea as a music app's title, just showing our numbers instead.
+function updateMediaSessionStats(elapsedMs) {
+  if (!('mediaSession' in navigator) || !state.tracking) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `${state.lapCount}周 ・ ${(state.totalDistanceM / 1000).toFixed(2)}km`,
+      artist: formatElapsed(elapsedMs),
+    });
+  } catch {
+    // Cosmetic only — not fatal if unsupported.
+  }
 }
 
 function drawPipFrame(elapsedMs) {
