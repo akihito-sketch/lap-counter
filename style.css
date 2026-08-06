@@ -22,6 +22,16 @@
   pointer-events: none;
 }
 
+/* Some mobile browsers (notably iOS Safari) refuse automatic Picture-in-Picture
+   for a video that looks fully invisible (zero opacity, 1px box). Give the PiP
+   source video real dimensions and near-zero (not exactly zero) opacity so it
+   still reads as a legitimate playing video, while staying visually out of the way. */
+#pipVideo {
+  width: 320px;
+  height: 120px;
+  opacity: 0.01;
+}
+
 html, body {
   margin: 0;
   padding: 0;
