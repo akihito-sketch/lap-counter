@@ -188,6 +188,13 @@ function render() {
 
   drawPipFrame(elapsedMs);
   updateMediaSessionStats(elapsedMs);
+
+  // If the PiP/keep-alive video ever ends up paused while we're still tracking (some
+  // devices pause media unexpectedly on certain transitions), get it playing again —
+  // auto-PiP and the background keep-alive both depend on it actually being active.
+  if (state.tracking && els.pipVideo.paused && pipSupported) {
+    els.pipVideo.play().catch(() => {});
+  }
 }
 
 // Piggybacks on the "now playing" media notification (already shown while the
@@ -247,8 +254,23 @@ function startKeepAlive() {
   try {
     els.keepAliveAudio.play().catch(() => {});
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: '周回カウンター計測中' });
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: '周回カウンター計測中',
+        artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }],
+      });
       navigator.mediaSession.playbackState = 'playing';
+      // Some browsers only show the full "now playing" notification (with our live
+      // title) once real action handlers are registered — without them they may fall
+      // back to a bare "site is running" notification instead.
+      navigator.mediaSession.setActionHandler('play', () => {
+        els.keepAliveAudio.play().catch(() => {});
+        navigator.mediaSession.playbackState = 'playing';
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        // Ignore — pausing our silent keep-alive track isn't something the user
+        // should be able to do from the notification, so just report we're still "playing".
+        navigator.mediaSession.playbackState = 'playing';
+      });
     }
   } catch {
     // Ignore — this is a mitigation, not a requirement for the app to function.
@@ -261,6 +283,8 @@ function stopKeepAlive() {
     els.keepAliveAudio.currentTime = 0;
     if ('mediaSession' in navigator) {
       navigator.mediaSession.playbackState = 'none';
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
     }
   } catch {
     // Ignore.
